@@ -5,7 +5,7 @@ model_path = "models/llama-2-7b.Q4_K_M.gguf"
 #model_path = "models/llama-2-13b.Q4_K_M.gguf"
 # All models are available at https://huggingface.co/TheBloke. Make sure you download the ones in the GGUF format
 
-question = "What is the capital of Italy? "
+question = "What is the capital of France? "
 llm = Llama(model_path=model_path, verbose=False)
 print("Asking the question \"%s\" to %s (wait, it can take some time...)" % (question, model_path))
 output = llm(
