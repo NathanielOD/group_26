@@ -81,8 +81,7 @@ for i,id in enumerate(question_id):
 
     # store the results in a file. 
     with open('output.txt', 'w') as output_file:
-    for question_id, details in data.items():
-        output_file.write(f"{question_id}\tR\"{response}\"\n")
+        output_file.write(f"{id}\tR\"{response}\"\n")
         for entity in entities:
-            output_file.write(f"{question_id}\tE\"{entity}\"\n")
+            output_file.write(f"{id}\tE\"{entity}\"\n")
    
