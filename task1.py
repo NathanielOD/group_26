@@ -29,14 +29,14 @@ def get_wikipedia_url(entity):
 
 
 # get the text filename from the command line
-fn = sys.argv[1]
+text_file = sys.argv[1]
 
 # extract questions from the file
 question_ids = []
 questions = []
 
 # Open the file in read mode
-with open(fn, 'r') as file:
+with open(text_file, 'r') as file:
     # Read each line in the file
     for line in file:
         # Split the line by the tab character '\t'
