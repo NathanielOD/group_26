@@ -18,7 +18,7 @@ user_agent = "WDP_group26/v0.1 (b.w.s.kamphorst@student.vu.nl)"
 wiki_wiki = wikipediaapi.Wikipedia(user_agent,'en')
 
 
-# Function to get Wikipedia page URL
+# Get Wikipedia page URL if it exists
 def get_wikipedia_url(entity):
     page = wiki_wiki.page(entity)
     if page.exists():
