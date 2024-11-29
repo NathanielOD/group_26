@@ -1,0 +1,3 @@
+question-001	What is the capital of egypt?
+question-002	What is the capital of France?
+question-003	What is the capital of Germany?

@@ -63,7 +63,7 @@ with open('output.txt', 'a') as output_file:
         output = llm(
         question,
         max_tokens=32,
-        temperature=0.5,
+        temperature=0.7,
         top_p=0.2,
         stop=["Q:"],
         echo=False
@@ -91,4 +91,5 @@ with open('output.txt', 'a') as output_file:
         
     
         print(f"Processed {id}")
+print("Done processing all questions")
    
