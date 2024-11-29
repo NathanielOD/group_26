@@ -1,2 +1,16 @@
 # group_26
- 
+
+ README
+
+Install the packages that are included in the requirements.txt file.
+pip install -r ./workspace/requirements.txt
+
+Afterwards, you need to run an additional line to include the wikipedia databse. Run the lines below:
+python -m spacy download en_core_web_sm
+
+You can now run the code in the Docker container:
+python ./workspace/task1.py
+
+It will ask for a question to ask the language model. Enter the question you want to ask.
+
+It will now take a while before the Llama output is printed. After the output is printed, it will give the overview of the recognized entities and the corresponding wikipedia pages. 
