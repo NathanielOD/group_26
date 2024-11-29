@@ -1,4 +1,2 @@
-os
-replicate
 spacy
-wikipediaapi
+wikipedia-api
