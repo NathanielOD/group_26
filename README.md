@@ -14,6 +14,4 @@ python ./workspace/task1.py[YOUR TEXT FILE]
 or
 python /workspace/task1.py[PATH TO YOUR TEXT FILE]
 
-Run the
-
 It will now take a while before the Llama output to be correctly formatted and written to a txt file called "output.txt". After a question is processed, the system will notify you. After all the processing is done the program will end and notify you. 
