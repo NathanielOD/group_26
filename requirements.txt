@@ -1,2 +1,3 @@
 spacy
 wikipedia-api
+spacy-entity-linker
