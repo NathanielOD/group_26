@@ -7,7 +7,6 @@ from llama_cpp import Llama
 import os
 import sys
 import spacy
-from google.colab import files
 from nltk.corpus import wordnet as wn
 import nltk
 import re
