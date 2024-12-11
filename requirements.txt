@@ -1,3 +1,2 @@
-spacy
-wikipedia-api
+nltk
 spacy-entity-linker
