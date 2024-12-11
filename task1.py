@@ -7,12 +7,10 @@ from llama_cpp import Llama
 import os
 import sys
 import spacy
-from nltk.corpus import wordnet as wn
 import nltk
 import re
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-import nltk
 import requests
 
 # Initialise the LLM
