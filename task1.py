@@ -126,7 +126,8 @@ def filter_incomplete_entities(entities):
 
     for entity in entities:
         entity_name = entity[0]
-        if len(entity_name) > 3 and entity_name.isalnum():
+        entity_name_wo_whitespace = entity_name.replace(" ","")
+        if len(entity_name) > 3 and entity_name_wo_whitespace.isalnum():
             filtered_entities.append(entity)
 
     return filtered_entities
