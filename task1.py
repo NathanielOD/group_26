@@ -14,8 +14,9 @@ from nltk.tokenize import word_tokenize
 import requests
 
 # Initialise the LLM
-model_path = "llama-2-7b.Q4_K_M.gguf"
+model_path = "models/llama-2-7b.Q4_K_M.gguf"
 '''
+model_path = "llama-2-7b.Q4_K_M.gguf"
 if not os.path.exists(model_path):
     !wget https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf -O {model_path} # not necessary in Docker code
 '''
