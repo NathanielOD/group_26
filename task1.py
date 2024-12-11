@@ -119,7 +119,16 @@ def compute_JS(tokens1,tokens2):
     # Calculate Jaccard Similarity
     return len(intersection) / len(union) if union else 0
 
+# Function to remove incorrect/incomplete entities
+def filter_incomplete_entities(entities):
+    filtered_entities = []
 
+    for entity in entities:
+        entity_name = entity[0]
+        if len(entity_name) > 3 and entity_name.isalnum():
+            filtered_entities.append(entity)
+
+    return filtered_entities
 
 # get the text filename from the command line
 text_file = sys.argv[1]
@@ -127,6 +136,7 @@ text_file = sys.argv[1]
 # extract questions from the file
 question_ids = []
 questions = []
+
 
 # Open the file in read mode
 with open(text_file, 'r') as file:
@@ -197,6 +207,9 @@ with open('output.txt', 'a') as output_file:
 
             entities.append((ent.text, ent.label_, wikipedia_url))
 
+        # Filter incorrect/incomplete entities
+        entities = filter_incomplete_entities(entities)
+
         # Get rid of duplicate entities
         entities = list(set(entities))
 
@@ -204,8 +217,4 @@ with open('output.txt', 'a') as output_file:
         output_file.write(f"{id}\tR\"{response}\"\n")
         for entity in entities:
             output_file.write(f"{id}\tE\"{entity[0]}\"\t\"{entity[2]}\"\n")
-
-        # Print update
-        print(f"Processed {id}")
-print("Done processing all questions")
    
