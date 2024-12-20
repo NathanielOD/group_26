@@ -1,5 +1,5 @@
 ### Web Data Processing
-### Assignment Task 1
+### Assignment Final task without sparql queries
 ### Group 26
 
 # Import all necessary packages
@@ -312,16 +312,7 @@ def determine_entity_answer(entities_question,entities_response):
 
 # Function to fact check yes/no answer using wikipedia
 def check_binary_answer(question, answer):
-    """
-    Verify a yes/no answer using Wikipedia content.
-
-    Parameters:
-    - question: The original question.
-    - answer: The yes/no answer generated.
-
-    Returns:
-    - True if the answer aligns with Wikipedia content, False otherwise.
-    """
+ 
     search_results = search_wikipedia_pages(question)
     correctness = False
     best_jaccard_score = 0
@@ -422,41 +413,7 @@ def query_knowledge_base(entity: str, relationship: str):
 
 
 
-def fact_check_entity(question, provided_answer):
-    
-    # Parse the question using NLP
-    
-    entities, relationships = parse_question_nlp(question)
-    if not entities or not relationships:
-        return "Unable to parse question."
 
-    # Normalize the provided answer
-    normalized_provided = provided_answer.strip().lower()
-    
-
-
-    # Iterate through all entity-relationship pairs
-    for entity in entities:
-        for relationship in relationships:
-            # Query the knowledge base for this entity-relationship pair
-            correct_answers = query_knowledge_base(entity, relationship.lower())
-            
-            # Skip if no answers found for this combination
-            if not correct_answers:
-                continue
-            
-            # Normalize and compare answers
-            normalized_correct = [answer.split("/")[-1].replace("_", " ").lower() for answer in correct_answers]
-
-
-            if normalized_provided in normalized_correct:
-                return True
-            
-            #if no match is found after iterating all combinations return no match
-
-
-    
-    return False
 
 
 
@@ -567,11 +524,6 @@ with open('output.txt', 'a') as output_file:
           else:
             correctness = "incorrect"
         else:  # Open answer
-          if fact_check_entity(question, answer) is True:
-            correctness = "correct"
-          elif fact_check_entity(question, answer) is False:
-            correctness = "incorrect"
-          elif fact_check_entity(question, answer) == "Unable to parse question.":
             if check_entity_answer(question, answer):
               correctness = "correct"
             else:
