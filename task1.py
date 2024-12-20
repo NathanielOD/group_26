@@ -297,9 +297,6 @@ def determine_entity_answer(entities_question,entities_response):
     pos_answers = list(set(pos_answers))
 
 
-    print(f'Possible answers: {pos_answers}') # REMOVE IN FINAL CODE
-
-
     # now, we check for each entity in the response the similarity with the merged wiki summaries of the entities in the question
     # the entity in the response with the highest JS with the merged summaries wins
     for ans in pos_answers:
@@ -465,11 +462,6 @@ with open('output.txt', 'a') as output_file:
           else:
             correctness = "incorrect"
 
-        print(f'-------------\nQuestion:\n{question}')
-        print(f'\nResponse:\n{response}')
-        print(f'\nAnswer:\n{answer}')
-        print(f'\nCorrectness:\n{correctness}')
-        print(f'\nEntities:\n{entities}')
         # Write question_id and response to output file
         output_file.write(f"{id}\tR\"{response}\"\n")
         output_file.write(f"{id}\tA\"{answer}\"\n")
