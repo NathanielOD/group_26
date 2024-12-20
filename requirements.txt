@@ -1,3 +1,4 @@
 nltk
 spacy-entity-linker
+spacy
 SPARQLWrapper

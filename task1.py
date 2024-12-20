@@ -309,48 +309,157 @@ def determine_entity_answer(entities_question,entities_response):
   return result
 
 
-# Function to fact check yes/no answer
+# Function to fact check yes/no answer using wikipedia
 def check_binary_answer(question, answer):
-  search_results = search_wikipedia_pages(question)
-  correctness = False
+    """
+    Verify a yes/no answer using Wikipedia content.
 
-  for result in search_results:
-      page_content = get_wikipedia_summary(result["page_id"])
-      if not page_content:
-          continue
+    Parameters:
+    - question: The original question.
+    - answer: The yes/no answer generated.
 
-      page_content_lower = page_content['summary'].lower()
-
-      # Determine if the answer aligns with the content
-      if answer.lower() == "yes" and question.lower() in page_content_lower:
-          correctness = True
-      else:
-        if answer.lower() == "no" and question.lower() not in page_content_lower:
-          correctness = True
-
-  return correctness
-
-
-# Function to fact check open answer
-def check_open_answer(question, answer):
+    Returns:
+    - True if the answer aligns with Wikipedia content, False otherwise.
+    """
     search_results = search_wikipedia_pages(question)
     correctness = False
+    best_jaccard_score = 0
+
+    question_tokens = set(word_tokenize(question.lower()))
 
     for result in search_results:
         page_content = get_wikipedia_summary(result["page_id"])
         if not page_content:
             continue
 
-        # Break content into sentences
+        # Tokenize page content
         doc = nlp(page_content['summary'])
-        sentences = [sent.text.lower() for sent in doc.sents]
+        sentences = [set(word_tokenize(sent.text.lower())) for sent in doc.sents]
 
-        # Check if the generated answer appears in any sentence
-        for sentence in sentences:
-            if answer.lower() in sentence:
+        # Validate yes/no answer based on similarity with Wikipedia content
+        for sentence_tokens in sentences:
+            
+
+            jaccard_score = compute_JS(question_tokens, sentence_tokens)
+            if jaccard_score > best_jaccard_score:
+                best_jaccard_score = jaccard_score
+            
+            
+
+            if answer.lower() == "yes" and best_jaccard_score > 0.2:
+                correctness = True
+                
+            elif answer.lower() == "no" and best_jaccard_score < 0.08:
+                
                 correctness = True
 
     return correctness
+
+
+# Function to fact check open answer using wikipedia
+def check_entity_answer(question, answer):
+    """
+    Similar to check_binary_answer, only for entities
+    """
+    search_results = search_wikipedia_pages(question)
+    correctness = False
+    best_jaccard_score = 0
+    answer_tokens = set(word_tokenize(answer.lower()))
+
+    for result in search_results:
+        page_content = get_wikipedia_summary(result["page_id"])
+        if not page_content:
+            continue
+
+        doc = nlp(page_content['summary'])
+        sentences = [set(word_tokenize(sent.text.lower())) for sent in doc.sents]
+
+        # Validate open answer based on similarity with Wikipedia content
+        for sentence_tokens in sentences:
+            
+
+            jaccard_score = compute_JS(answer_tokens, sentence_tokens)
+            if jaccard_score > best_jaccard_score:
+                best_jaccard_score = jaccard_score
+            if best_jaccard_score > 0.25:
+                
+                correctness = True
+
+    return correctness
+
+
+def parse_question_nlp(question: str):
+    
+    doc = nlp(question)
+
+    entities = [ent.text for ent in doc.ents]
+    relationships = [token.text for token in doc]
+
+
+
+
+    
+    return entities, relationships
+
+
+def query_knowledge_base(entity: str, relationship: str):
+    """
+    Queries DBpedia to retrieve the correct answer for the given entity and relationship.
+    """
+    sparql = SPARQLWrapper("http://dbpedia.org/sparql")
+    # Create the SPARQL query based on possible relationship and entity
+    sparql.setQuery(f"""
+    SELECT ?answer WHERE {{
+      dbr:{entity.replace(' ', '_')} dbo:{relationship} ?answer .
+    }}
+    """)
+    sparql.setReturnFormat(JSON)
+    
+    results = sparql.query().convert()
+    
+    return [result["answer"]["value"] for result in results["results"]["bindings"]]
+
+
+
+def fact_check_entity(question, provided_answer):
+    
+    # Parse the question using NLP
+    
+    entities, relationships = parse_question_nlp(question)
+    if not entities or not relationships:
+        return "Unable to parse question."
+
+    # Normalize the provided answer
+    normalized_provided = provided_answer.strip().lower()
+    
+
+
+    # Iterate through all entity-relationship pairs
+    for entity in entities:
+        for relationship in relationships:
+            # Query the knowledge base for this entity-relationship pair
+            correct_answers = query_knowledge_base(entity, relationship.lower())
+            
+            # Skip if no answers found for this combination
+            if not correct_answers:
+                continue
+            
+            # Normalize and compare answers
+            normalized_correct = [answer.split("/")[-1].replace("_", " ").lower() for answer in correct_answers]
+
+
+            if normalized_provided in normalized_correct:
+                return True
+            
+            #if no match is found after iterating all combinations return no match
+
+
+    
+    return False
+
+
+
+
 
 # get the text filename from the command line
 text_file = sys.argv[1]
@@ -405,8 +514,8 @@ with open('output.txt', 'a') as output_file:
         output = llm(
         question,
         max_tokens=25,
-        temperature=0.3,#testing different temperatures to see how the answer extracting responds
-        top_p=0.7,
+        temperature=0.2,#testing different temperatures to see how the answer extracting responds
+        top_p=0.2,
         stop=["Q:", "Question:"], # geen \n want zo begint hij altijd zn antwoord over nicaragua
         #top_k=10,
         echo=False
@@ -457,10 +566,15 @@ with open('output.txt', 'a') as output_file:
           else:
             correctness = "incorrect"
         else:  # Open answer
-          if check_open_answer(question, answer):
+          if fact_check_entity(question, answer) is True:
             correctness = "correct"
-          else:
+          elif fact_check_entity(question, answer) is False:
             correctness = "incorrect"
+          elif fact_check_entity(question, answer) == "Unable to parse question.":
+            if check_entity_answer(question, answer):
+              correctness = "correct"
+            else:
+              correctness = "incorrect"
 
         # Write question_id and response to output file
         output_file.write(f"{id}\tR\"{response}\"\n")
