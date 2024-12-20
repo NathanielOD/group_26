@@ -54,7 +54,7 @@ def get_ent_context(entity, text, window_size=5):
     # Extract context without stop words
     stop_words = set(stopwords.words('english'))
     context = [token for i, token in enumerate(tokens[start:end])
-               if i < len(entity_words) and token not in stop_words]
+               if token not in stop_words]
 
     return context
 
@@ -84,8 +84,23 @@ def search_wikipedia_pages(entity):
     return pages
 
 # Function to obtain the summary of a Wikipedia page
-def get_wikipedia_summary(page_id):
+# takes as input a page id or a URL
+def get_wikipedia_summary(input_value):
     url = "https://en.wikipedia.org/w/api.php"
+
+    # Check if input is a URL
+    if isinstance(input_value, str) and input_value.startswith("http"):
+        # Extract the page ID from the URL
+        match = re.search(r"curid=(\d+)", input_value)
+        if match:
+            page_id = match.group(1)
+        else:
+            raise ValueError("The URL does not contain a valid page ID.")
+    else:
+        # Assume input is the page ID
+        page_id = str(input_value)
+
+    # Request parameters
     params = {
         "action": "query",
         "pageids": page_id,  # Use the page ID
@@ -95,9 +110,12 @@ def get_wikipedia_summary(page_id):
         "format": "json",
     }
 
+    # Send the request
     response = requests.get(url, params=params)
     data = response.json()
-    page = data["query"]["pages"].get(str(page_id))
+
+    # Access the page content
+    page = data["query"]["pages"].get(page_id)
 
     if page and "extract" in page:
         return {
@@ -106,6 +124,50 @@ def get_wikipedia_summary(page_id):
         }
     else:
         return None
+
+def is_disambiguation_page(page_id):
+    url = "https://en.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "format": "json",
+        "prop": "categories",
+        "pageids": page_id
+    }
+    response = requests.get(url, params=params).json()
+    categories = response.get("query", {}).get("pages", {}).get(str(page_id), {}).get("categories", [])
+    for category in categories:
+        if "Disambiguation pages" in category.get("title", ""):
+            return True
+    return False
+
+def get_first_result_page(disambig_page_id):
+    # Step 1: Get the links on the disambiguation page
+    url = "https://en.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "format": "json",
+        "prop": "links",
+        "pageids": disambig_page_id,
+        "pllimit": 1  # Limit to the first link
+    }
+    response = requests.get(url, params=params).json()
+    links = response.get("query", {}).get("pages", {}).get(str(disambig_page_id), {}).get("links", [])
+    if not links:
+        return None  # No links found
+
+    first_title = links[0]["title"]
+
+    # Step 2: Get the page ID of the first link
+    params = {
+        "action": "query",
+        "format": "json",
+        "titles": first_title
+    }
+    response = requests.get(url, params=params).json()
+    pages = response.get("query", {}).get("pages", {})
+    first_page_id = next(iter(pages.values())).get("pageid", None)
+
+    return f"https://en.wikipedia.org/?curid={first_page_id}"
 
 # Function to compute the Jaccard Similarity
 def compute_JS(tokens1,tokens2):
@@ -132,6 +194,167 @@ def filter_incomplete_entities(entities):
 
     return filtered_entities
 
+# Performs Named Entity Recognition on a corpus of text
+# Returns array with entities and corresponding wikipedia page
+def NER(text,top_wiki_page=True):
+  doc = nlp(text)
+  entities = []
+
+  for ent in doc.ents:
+     # Obtain context of entity mention
+    context = get_ent_context(ent.text, doc.text)
+
+    # Search for the entity in wikipedia, obtain all candidates
+    pages = search_wikipedia_pages(ent.text)
+    pages = pages[:min(3,len(pages))] # take only the three top pages
+
+    if not pages:
+        wikipedia_url = None
+    else:
+        if(top_wiki_page):
+          page_id = pages[0]["page_id"]
+        else:
+          JS_score = []
+
+          # Go over each candidate and compute its similarity with the entity mention
+          for p in pages:
+              title = p["title"]
+              page_id = p["page_id"]
+
+              # Obtain summary of Wikipedia page and tokenize it, remove stop words and interpunction
+              summary = get_wikipedia_summary(page_id)['summary']
+              summ_tokens = word_tokenize(re.sub(r'[^\w\s]', '', summary))
+              summ_tokens = [token.lower() for token in summ_tokens]
+              stop_words = set(stopwords.words('english'))
+              summ_tokens = [token for token in summ_tokens if token not in stop_words]
+              JS_score.append(compute_JS(context,summ_tokens))
+
+          # Determine the best match as the one with the highest JS score
+          best_page = JS_score.index(max(JS_score))
+          page_id = pages[best_page]["page_id"]
+
+        if is_disambiguation_page(page_id):
+          wikipedia_url = get_first_result_page(page_id)
+        else:
+          wikipedia_url = f"https://en.wikipedia.org/?curid={page_id}"
+
+    cand = [ent.text, wikipedia_url]
+    if cand not in entities:
+      entities.append(cand)
+  return entities
+
+
+def is_yesno_question(response, entities_response, entities_question):
+  result = [False]
+
+  for ent in entities_response:
+    if ent not in entities_question:
+      return result
+
+  # Tokenize and remove stop words and interpunction
+  response_tokens = word_tokenize(re.sub(r'[^\w\s]', '', response))
+  response_tokens = [token.lower() for token in response_tokens]
+  response_tokens = [token for token in response_tokens if token not in stop_words]
+
+  # Compute JS of the response with affirmative and negative words
+  JS_affirmative = compute_JS(affirmative,response_tokens)
+  JS_negative = compute_JS(negative,response_tokens)
+
+  # Determine whether the question is yes/no
+  if max(JS_affirmative,JS_negative) >= threshold:
+      result[0] = True
+      if JS_affirmative > JS_negative:
+          result.append("yes")
+      else:
+          result.append("no")
+
+  return result
+
+def determine_entity_answer(entities_question,entities_response):
+
+  if len(entities_response)==0:
+    return None
+
+  result = entities_response[0][0]#[1]
+  if len(entities_response) == 1:
+    return result
+  else:
+    # construct a string of all wiki summaries of the entities in the question
+    summaries = ""
+    for ent in entities_question:
+      summary = get_wikipedia_summary(ent[1])
+      if summary and 'summary' in summary:
+          summaries += summary['summary']
+
+    # convert to tokens without interpunction and stop words
+    summaries_tokens = word_tokenize(re.sub(r'[^\w\s]', '', summaries))
+    summaries_tokens = [token.lower() for token in summaries_tokens if token not in stop_words]
+
+    JS_max = 0
+
+    # create list of possible answers (all entities in the response)
+    pos_answers = [ent[0] for ent in entities_response]
+    pos_answers = list(set(pos_answers))
+
+
+    print(f'Possible answers: {pos_answers}') # REMOVE IN FINAL CODE
+
+
+    # now, we check for each entity in the response the similarity with the merged wiki summaries of the entities in the question
+    # the entity in the response with the highest JS with the merged summaries wins
+    for ans in pos_answers:
+      JS_current = compute_JS(word_tokenize(ans.lower()), summaries_tokens)
+
+      if JS_current >= JS_max:
+        result = ans
+        JS_max = JS_current
+
+  return result
+
+
+# Function to fact check yes/no answer
+def check_binary_answer(question, answer):
+  search_results = search_wikipedia_pages(question)
+  correctness = False
+
+  for result in search_results:
+      page_content = get_wikipedia_summary(result["page_id"])
+      if not page_content:
+          continue
+
+      page_content_lower = page_content['summary'].lower()
+
+      # Determine if the answer aligns with the content
+      if answer.lower() == "yes" and question.lower() in page_content_lower:
+          correctness = True
+      else:
+        if answer.lower() == "no" and question.lower() not in page_content_lower:
+          correctness = True
+
+  return correctness
+
+
+# Function to fact check open answer
+def check_open_answer(question, answer):
+    search_results = search_wikipedia_pages(question)
+    correctness = False
+
+    for result in search_results:
+        page_content = get_wikipedia_summary(result["page_id"])
+        if not page_content:
+            continue
+
+        # Break content into sentences
+        doc = nlp(page_content['summary'])
+        sentences = [sent.text.lower() for sent in doc.sents]
+
+        # Check if the generated answer appears in any sentence
+        for sentence in sentences:
+            if answer.lower() in sentence:
+                correctness = True
+
+    return correctness
+
 # get the text filename from the command line
 text_file = sys.argv[1]
 
@@ -151,72 +374,106 @@ with open(text_file, 'r') as file:
             question_ids.append(question_id)
             questions.append(question)
 
+
+# CONSTANTS
+
+affirmative = ["yes", "certainly", "definitely", "indeed", "obviously", "clearly",
+              "positively", "agreed", "absolutely", "undoubtedly", "surely",
+              "in fact", "right", "true", "affirmative", "always","everybody knows"]
+
+negative = ["no", "not", "never", "unlikely", "doubt", "doubtful", "impossible",
+            "cannot", "wrong", "refuse", "denied", "negative", "never", "disagree",
+            "contrary", "incorrect", "mistaken", "out of the question", "reject",
+            "false", "absent"]
+
+threshold = 0.03
+
+stop_words = set(stopwords.words('english'))
+
+# Compute the ouput and write it in a text file
 # Compute the ouput and write it in a text file
 with open('output.txt', 'a') as output_file:
     # Iterate through all questions
     for i, id in enumerate(question_ids):
+        # Check for duplicates
+        '''
+        if id in processed_questions:
+              continue
+        processed_questions.add(id)
+        '''
+
         question = questions[i]
 
         # Generate LLM response based on optimized parameters
         output = llm(
         question,
-        max_tokens=32,
-        temperature=0.7,
-        top_p=0.2,
-        stop=["Q:"],
+        max_tokens=25,
+        temperature=0.3,#testing different temperatures to see how the answer extracting responds
+        top_p=0.7,
+        stop=["Q:", "Question:"], # geen \n want zo begint hij altijd zn antwoord over nicaragua
+        #top_k=10,
         echo=False
         )
 
         # Extract response from LLM
         response = output['choices'][0]['text'].strip()
 
-        # Extract the entities using Spacy NLP model
-        doc = nlp(question + " " + response)
+        #### ENTITY RECOGNITION AND LINKING ####
 
         # Find the Wikipedia page for each entity and store them together
-        entities = []
-        for ent in doc.ents:
-            # Obtain context of entity mention
-            context = get_ent_context(ent.text, doc.text)
+        entities_question = NER(question)
+        entities_response = NER(response)
 
-            # Search for the entity in wikipedia, obtain all candidates
-            pages = search_wikipedia_pages(ent.text)
-
-            if not pages:
-                wikipedia_url = None
-            else:
-                JS_score = []
-
-                # Go over each candidate and compute its similarity with the entity mention
-                for p in pages:
-                    title = p["title"]
-                    page_id = p["page_id"]
-
-                    # Obtain summary of Wikipedia page and tokenize it, remove stop words and interpunction
-                    summary = get_wikipedia_summary(page_id)['summary']
-                    summ_tokens = word_tokenize(re.sub(r'[^\w\s]', '', summary))
-                    summ_tokens = [token.lower() for token in summ_tokens]
-                    stop_words = set(stopwords.words('english'))
-                    summ_tokens = [token for token in summ_tokens if token not in stop_words]
-                    JS_score.append(compute_JS(context,summ_tokens))
-
-                # Determine the best match as the one with the highest JS score
-                best_page = JS_score.index(max(JS_score))
-                page_id = pages[best_page]["page_id"]
-
-                wikipedia_url = f"https://en.wikipedia.org/?curid={page_id}"
+        # Merge the entities in question and response and get rid of duplicates
+        entities = entities_question + entities_response
+        entities = [list(x) for x in set(tuple(lst) for lst in entities)]
 
 
-            entities.append((ent.text, ent.label_, wikipedia_url))
+        #### EXTRACTING ANSWER (YES/NO OR ENTITY) ####
 
-        # Filter incorrect/incomplete entities
-        entities = filter_incomplete_entities(entities)
+        yesno = is_yesno_question(response, entities_response, entities_question)
+        if yesno[0]:
+          answer = yesno[1]
+        else:
+          answer = determine_entity_answer(entities_question,entities_response)
 
-        # Get rid of duplicate entities
-        entities = list(set(entities))
+        if answer == None: # Try once more
+          # Extract response from LLM
+          response = output['choices'][0]['text'].strip()
+          # Find the Wikipedia page for each entity
+          entities_response = NER(response)
+          # Merge the entities in question and response and get rid of duplicates
+          entities = entities_question + entities_response
+          entities = [list(x) for x in set(tuple(lst) for lst in entities)]
+          # Extract answer
+          yesno = is_yesno_question(response, entities_response, entities_question)
+          if yesno[0]:
+            answer = yesno[1]
+          else:
+            answer = determine_entity_answer(entities_question,entities_response)
 
+        #### FACT CHECKING ####
+
+        if yesno[0]:  # Yes/no answer
+          if check_binary_answer(question, answer):
+            correctness = "correct"
+          else:
+            correctness = "incorrect"
+        else:  # Open answer
+          if check_open_answer(question, answer):
+            correctness = "correct"
+          else:
+            correctness = "incorrect"
+
+        print(f'-------------\nQuestion:\n{question}')
+        print(f'\nResponse:\n{response}')
+        print(f'\nAnswer:\n{answer}')
+        print(f'\nCorrectness:\n{correctness}')
+        print(f'\nEntities:\n{entities}')
         # Write question_id and response to output file
         output_file.write(f"{id}\tR\"{response}\"\n")
+        output_file.write(f"{id}\tA\"{answer}\"\n")
+        output_file.write(f"{id}\tC\"{correctness}\"\n")
         for entity in entities:
-            output_file.write(f"{id}\tE\"{entity[0]}\"\t\"{entity[2]}\"\n")
+            output_file.write(f"{id}\tE\"{entity[0]}\"\t\"{entity[1]}\"\n")
    
