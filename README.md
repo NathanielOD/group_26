@@ -10,7 +10,7 @@ python -m spacy download en_core_web_sm
 Your text file should be in the same directory as the final_task python script.
 
 You can now run the code in the Docker container by using the commands:
-python ./workspace/final_task.py[YOUR TEXT FILE]
+python ./workspace/final_task.py ./workspace/[YOUR TEXT FILE]
 or
 python /workspace/final_task.py[PATH TO YOUR TEXT FILE]
 
