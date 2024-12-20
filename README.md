@@ -15,3 +15,5 @@ or
 python /workspace/final_task.py[PATH TO YOUR TEXT FILE]
 
 It will now take a while before the Llama output to be correctly formatted and written to a txt file called "output.txt". The program wil end after all the output for the output.txt file is created
+
+When running in the docker container on docker desktop, make sure latest version of docker desktop is installe. If not, SPARQL queries may not work due to a network compatibility in docker
