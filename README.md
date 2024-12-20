@@ -15,6 +15,7 @@ or
 python /workspace/final_task.py[PATH TO YOUR TEXT FILE]
 
 If the program encounters network issue please run the following python ./workspace/final_task_without_SPARQL.py ./workspace/[YOUR TEXT FILE]
+This version of the program does not make use of the fact checking function which queries dbpedia.
 
 It will now take a while before the Llama output to be correctly formatted and written to a txt file called "output.txt". The program wil end after all the output for the output.txt file is created
 
